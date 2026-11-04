@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>المتاهة الرياضية</title>
+<style>
+:root{--bg:#f3efe6;--ink:#1d2b3a;--wall:#1d2b3a;--cell:#fffdf7;--gate:#f2b632;--ok:#2e8b57;--bad:#c0392b;--card:#fff;--mut:#5d6b7a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a24;--ink:#e8edf2;--wall:#7fb4e6;--cell:#1b2634;--gate:#e0a526;--card:#1f2c3b;--mut:#9fb0c1}}
+:root[data-theme="dark"]{--bg:#121a24;--ink:#e8edf2;--wall:#7fb4e6;--cell:#1b2634;--gate:#e0a526;--card:#1f2c3b;--mut:#9fb0c1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,"Noto Naskh Arabic",Arial,sans-serif;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px}
+h1{margin:4px 0 0;font-size:1.6rem}
+.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;font-weight:600}
+.bar span,.bar select{background:var(--card);border-radius:10px;padding:6px 12px;border:1px solid var(--wall);color:var(--ink);font:inherit}
+#board{direction:ltr;display:grid;width:min(94vw,520px);aspect-ratio:1;border:3px solid var(--wall);background:var(--cell);touch-action:none}
+.c{display:flex;align-items:center;justify-content:center;font-size:clamp(12px,4.2vw,26px);border:0 solid var(--wall);line-height:1}
+.c.t{border-top-width:2px}.c.r{border-right-width:2px}.c.b{border-bottom-width:2px}.c.l{border-left-width:2px}
+.c.g{background:var(--gate)}
+.pad{direction:ltr;display:grid;grid-template-columns:repeat(3,56px);gap:6px}
+.pad button{height:48px;font-size:1.3rem;border-radius:12px;border:1px solid var(--wall);background:var(--card);color:var(--ink);cursor:pointer}
+.pad button:focus-visible,#opts button:focus-visible,.go:focus-visible{outline:3px solid var(--gate)}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+#modal.on{display:flex}
+.box{background:var(--card);border-radius:16px;padding:20px;width:min(94vw,400px);text-align:center}
+#q{font-size:1.5rem;font-weight:700;direction:ltr;margin:6px 0 14px}
+#opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;direction:ltr}
+#opts button,.go{font:inherit;font-size:1.25rem;padding:12px;border-radius:12px;border:2px solid var(--wall);background:var(--cell);color:var(--ink);cursor:pointer}
+#opts button.ok{background:var(--ok);color:#fff}#opts button.no{background:var(--bad);color:#fff}
+.go{background:var(--gate);color:#1d2b3a;font-weight:700;margin-top:10px}
+small{color:var(--mut)}
+</style>
+</head>
+<body>
+<h1>🧮 المتاهة الرياضية</h1>
+<div class="bar">
+<span>المستوى: <b id="lv">1</b></span>
+<span>النقاط: <b id="sc">0</b></span>
+<span>الأرواح: <b id="lf">❤️❤️❤️</b></span>
+<select id="df" aria-label="الصعوبة"><option value="1">سهل: حساب</option><option value="2">متوسط: معادلات وقوى</option><option value="3">صعب: اشتقاق وتكامل</option></select>
+</div>
+<small>وصّل 🙂 إلى 🏁 وأجب عن سؤال كل بوابة 🟨 (الأسهم أو WASD أو السحب)</small>
+<div id="board" aria-label="المتاهة"></div>
+<div class="pad"><span></span><button data-d="0" aria-label="أعلى">▲</button><span></span><button data-d="3" aria-label="يسار">◀</button><button data-d="2" aria-label="أسفل">▼</button><button data-d="1" aria-label="يمين">▶</button></div>
+<div id="modal"><div class="box"><div id="mt">أجب لتفتح البوابة</div><div id="q"></div><div id="opts"></div></div></div>
+<script>
+const $=id=>document.getElementById(id);
+const R=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const sh=a=>{for(let i=a.length-1;i>0;i--){const j=R(0,i);[a[i],a[j]]=[a[j],a[i]]}return a};
+const sg=(b)=>b<0?'−':'+';
+let n,g,lvl=1,lives=3,score=0,px=0,py=0,gates=new Set(),busy=false;
+const DX=[0,1,0,-1],DY=[-1,0,1,0],OP=[2,3,0,1];
+
+function question(d){const t=R(0,2);let a,b,k,x;
+ if(d==1){
+  if(t==0){a=R(5,60);b=R(5,60);return[`${a} + ${b} = ؟`,a+b]}
+  if(t==1){a=R(30,99);b=R(2,29);return[`${a} − ${b} = ؟`,a-b]}
+  a=R(3,12);b=R(3,12);return[`${a} × ${b} = ؟`,a*b]}
+ if(d==2){
+  if(t==0){x=R(-6,9);a=R(2,7);b=R(-9,9);return[`${a}x ${sg(b)} ${Math.abs(b)} = ${a*x+b} ⟹ x = ؟`,x]}
+  if(t==1){a=R(2,5);k=R(2,4);return[`${a}<sup>${k}</sup> = ؟`,a**k]}
+  a=R(3,15);b=R(1,9);return[`√${a*a} + ${b} = ؟`,a+b]}
+ if(t==0){a=R(1,5);b=R(1,6);k=R(1,4);return[`f(x)=${a}x²+${b}x ⟹ f ′(${k}) = ؟`,2*a*k+b]}
+ if(t==1){a=R(2,9);b=R(2,6);return[`ln(e<sup>${a}</sup>) × ${b} = ؟`,a*b]}
+ a=R(2,9);return[`∫<sub>0</sub><sup>${a}</sup> 2x dx = ؟`,a*a]}
+
+function gen(){
+ n=Math.min(6+lvl,12);g=Array.from({length:n},()=>Array.from({length:n},()=>({w:[1,1,1,1],v:0})));
+ const st=[[0,0]];g[0][0].v=1;
+ while(st.length){const[x,y]=st[st.length-1];
+  const nb=sh([0,1,2,3]).filter(d=>{const X=x+DX[d],Y=y+DY[d];return X>=0&&Y>=0&&X<n&&Y<n&&!g[Y][X].v});
+  if(!nb.length){st.pop();continue}
+  const d=nb[0],X=x+DX[d],Y=y+DY[d];g[y][x].w[d]=0;g[Y][X].w[OP[d]]=0;g[Y][X].v=1;st.push([X,Y])}
+ // path BFS
+ const par={'0,0':null},q=[[0,0]];
+ while(q.length){const[x,y]=q.shift();if(x==n-1&&y==n-1)break;
+  for(let d=0;d<4;d++){if(g[y][x].w[d])continue;const X=x+DX[d],Y=y+DY[d],k=X+','+Y;if(!(k in par)){par[k]=[x,y];q.push([X,Y])}}}
+ const path=[];let c=[n-1,n-1];while(c){path.unshift(c);c=par[c.join(',')]}
+ gates=new Set();const m=Math.min(2+lvl,path.length-2);
+ for(let i=1;i<=m;i++)gates.add(path[Math.round(i*(path.length-1)/(m+1))].join(','));
+ px=0;py=0;draw()}
+
+function draw(){
+ const b=$('board');b.style.gridTemplateColumns=`repeat(${n},1fr)`;let h='';
+ for(let y=0;y<n;y++)for(let x=0;x<n;x++){const w=g[y][x].w,k=x+','+y;
+  let cl='c'+(w[0]?' t':'')+(w[1]?' r':'')+(w[2]?' b':'')+(w[3]?' l':'')+(gates.has(k)?' g':'');
+  let s=x==px&&y==py?'🙂':x==n-1&&y==n-1?'🏁':gates.has(k)?'❓':'';
+  h+=`<div class="${cl}">${s}</div>`}
+ b.innerHTML=h;$('lv').textContent=lvl;$('sc').textContent=score;$('lf').textContent='❤️'.repeat(lives)||'💔'}
+
+function move(d){
+ if(busy||g[py][px].w[d])return;
+ const X=px+DX[d],Y=py+DY[d],k=X+','+Y;
+ if(gates.has(k))ask(k,X,Y);else go(X,Y)}
+function go(X,Y){px=X;py=Y;draw();if(X==n-1&&Y==n-1)win()}
+
+function ask(k,X,Y){
+ busy=true;const[t,ans]=question(+$('df').value);
+ const o=new Set([ans]);const off=sh([1,-1,2,-2,3,-3,5,10,-10]);
+ for(const f of off){if(o.size>=4)break;o.add(ans+f)}
+ $('mt').textContent='أجب لتفتح البوابة 🔓';$('q').innerHTML=t;
+ $('opts').innerHTML=sh([...o]).map(v=>`<button>${String(v).replace('-','−')}</button>`).join('');
+ $('modal').classList.add('on');
+ [...$('opts').children].forEach((bt,i)=>{const v=[...$('opts').children].indexOf(bt);
+  bt.onclick=()=>{const val=+bt.textContent.replace('−','-');
+   [...$('opts').children].forEach(x=>x.disabled=true);
+   if(val==ans){bt.classList.add('ok');score+=10;gates.delete(k);
+    setTimeout(()=>{$('modal').classList.remove('on');busy=false;go(X,Y)},600)}
+   else{bt.classList.add('no');lives--;
+    [...$('opts').children].forEach(x=>{if(+x.textContent.replace('−','-')==ans)x.classList.add('ok')});
+    setTimeout(()=>{$('modal').classList.remove('on');busy=false;
+     if(lives<=0)over();else{px=0;py=0;draw()}},1300)}}})}
+
+function msg(title,txt,btn,fn){
+ busy=true;$('mt').textContent=title;$('q').innerHTML=txt;
+ $('opts').innerHTML=`<button class="go" style="grid-column:1/3">${btn}</button>`;
+ $('opts').firstChild.onclick=()=>{$('modal').classList.remove('on');busy=false;fn()};
+ $('modal').classList.add('on')}
+function win(){score+=50;draw();msg('🎉 أحسنت!','وصلت إلى المخرج<br>النقاط: '+score,'المستوى التالي',()=>{lvl++;gen()})}
+function over(){msg('💔 انتهت الأرواح','النقاط: '+score,'إعادة اللعب',()=>{lvl=1;lives=3;score=0;gen()})}
+
+document.addEventListener('keydown',e=>{const m={ArrowUp:0,w:0,ArrowRight:1,d:1,ArrowDown:2,s:2,ArrowLeft:3,a:3}[e.key];
+ if(m!==undefined){e.preventDefault();move(m)}});
+document.querySelectorAll('.pad button').forEach(b=>b.onclick=()=>move(+b.dataset.d));
+let sx,sy;const bd=$('board');
+bd.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+bd.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+ if(Math.max(Math.abs(dx),Math.abs(dy))<20)return;
+ move(Math.abs(dx)>Math.abs(dy)?(dx>0?1:3):(dy>0?2:0))});
+gen();
+</script>
+</body>
+</html>
